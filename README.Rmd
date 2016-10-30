@@ -5,6 +5,7 @@ output: github_document
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
+
 ```
 
 ---
@@ -14,23 +15,128 @@ output:
 ---
 
 
-* Name: 
-* Project title:
+* Name: Connor McCormick
+* Project title: Looking at public spending trends, as a percent of GDP, I want to see how countries allocate their incomes across decades and countries.  Using the World Development Indicators from 1960 to present, 
 * Write-up on RPubs: <http://rpubs.com/rudeboybert/Tree_Growth_Differences>
-* Abstract: Hello World!
+* Abstract: 
 
 
 ```{r, echo=FALSE, message=FALSE}
-#
-# Include code for one plot here
-#
 library(ggplot2)
 library(dplyr)
-small <- sample_n(diamonds, 2000) 
-ggplot(data=diamonds, aes(x=carat,y=price,colour=cut)) +
-  geom_point() +
-  scale_y_log10() + 
-  facet_wrap(~cut) +
-  ggtitle("Replace this plot with one of your own")
+library(readr)
+library(lubridate)
+library(Quandl)
+library(forcats)
+library(tidyverse)
+library(norm)
+library(knitr)
+library(WDI)
+library(countrycode)
+library(broom)
+library(maptools)
+library(sp)
+library(rgdal)
+library(rworldmap)
+
+
+WDI_select <- WDI(country="all", indicator=c("PA.NUS.PPP.05","SE.ADT.LITR.ZS", "AG.LND.TRAC.ZS", "MS.MIL.TOTL.TF.ZS", "SE.XPD.CTOT.ZS", "IC.BUS.EASE.XQ", "NY.GDP.MKTP.PP.CD", "SE.XPD.TOTL.GD.ZS", "SH.XPD.TOTL.ZS", "MS.MIL.XPND.GD.ZS", "IT.CEL.SETS.P2", "SP.RUR.TOTL.ZS"),
+    start=1960, end=2015)
+
+World <- rgdal::readOGR("ne_110m_admin_0_countries/ne_110m_admin_0_countries.shp", layer = "ne_110m_admin_0_countries") 
+
+World_polygon <- tidy(World, region="iso_a2") %>%
+  filter(!id %in% "AQ")
+
+WDI_selectmilenium <- WDI_select%>%
+  filter(year>=2000)
+
+WDImap <- left_join(World_polygon, WDI_selectmilenium, by=c("id"="iso2c")) 
+
+#EDUCTION EXPENDITURE AS % OF GDP in 2000 and 2010
+WDImap2000 <- WDImap %>%
+  filter(year==2000)
+WDImap2010 <- WDImap %>%
+  filter(year==2010)
+
+ggplot(WDImap2000, aes(x=long, y=lat, group=group, fill = SE.XPD.TOTL.GD.ZS)) +
+  geom_path() +
+  geom_polygon() +
+  coord_map() +
+  labs(title = "2000 Eduction Expenditure (% of GDP)", x = "Longitude", y = "Latitude")
+
+ggplot(WDImap2010, aes(x=long, y=lat, group=group, fill = SE.XPD.TOTL.GD.ZS)) +
+  geom_path() +
+  geom_polygon() +
+  coord_map() +
+  labs(title = "2010 Eduction Expenditure (% of GDP)", x = "Longitude", y = "Latitude")
+
+#Healthcare EXPENDITURE AS % OF GDP in 2000 and 2010
+ggplot(WDImap2000, aes(x=long, y=lat, group=group, fill = SH.XPD.TOTL.ZS)) +
+  geom_path() +
+  geom_polygon() +
+  coord_map() +
+  labs(title = "2000 Eduction Expenditure (% of GDP)", x = "Longitude", y = "Latitude")
+
+ggplot(WDImap2010, aes(x=long, y=lat, group=group, fill = SH.XPD.TOTL.ZS)) +
+  geom_path() +
+  geom_polygon() +
+  coord_map() +
+  labs(title = "2010 Eduction Expenditure (% of GDP)", x = "Longitude", y = "Latitude")
+
+#MILITARY EXPENDITURE AS % OF GDP in 2000 and 2010
+ggplot(WDImap2000, aes(x=long, y=lat, group=group, fill = MS.MIL.XPND.GD.ZS)) +
+  geom_path() +
+  geom_polygon() +
+  coord_map()  
+
+ggplot(WDImap2010, aes(x=long, y=lat, group=group, fill = MS.MIL.XPND.GD.ZS)) +
+  geom_path() +
+  geom_polygon() +
+  coord_map()  
+
+
+#looking out how much healthcare and education spending, as a percent of GDP, is compared to military spending
+GOVT_gdp2000 <- WDImap2000 %>%
+  mutate(spending = SE.XPD.TOTL.GD.ZS+SH.XPD.TOTL.ZS-MS.MIL.XPND.GD.ZS)
+
+GOVT_gdp2010 <- WDImap %>%
+  filter(year==2010) %>%
+  mutate(spending = SE.XPD.TOTL.GD.ZS+SH.XPD.TOTL.ZS-MS.MIL.XPND.GD.ZS) 
+
+ggplot(GOVT_gdp2000, aes(x=long, y=lat, group=group, fill = spending)) +
+  geom_path() +
+  geom_polygon() +
+  coord_map()  
+
+ggplot(GOVT_gdp2010, aes(x=long, y=lat, group=group, fill = spending)) +
+  geom_path() +
+  geom_polygon() +
+  coord_map()  
+
+#Time series regression to predict cell phones per 100 people using time, military expenditure and percent rural population
+spendingmodel <- lm(IT.CEL.SETS.P2 ~ year + country + SP.RUR.TOTL.ZS + MS.MIL.XPND.GD.ZS, data=WDImap, family="binomial")
+
+predictions <- WDImap %>%
+  select(country, year, SP.RUR.TOTL.ZS, IT.CEL.SETS.P2, MS.MIL.XPND.GD.ZS) %>%
+  filter(!is.na(country)) %>%
+  filter(!is.na(IT.CEL.SETS.P2)) %>%
+  filter(!is.na(SP.RUR.TOTL.ZS)) %>%
+  filter(!is.na(MS.MIL.XPND.GD.ZS)) %>%
+  mutate(p_hat1 = fitted(spendingmodel, type = "response")) %>%
+  distinct()
+
+predictions_tidy <- predictions %>%
+  gather(type, fitted_prob, -c(SP.RUR.TOTL.ZS, country, year, IT.CEL.SETS.P2, MS.MIL.XPND.GD.ZS))
+
+countries <- left_join(predictions_tidy, all, by = c("country" = "name"))
+  
+
+
+ggplot(countries, aes(x=year, group = country)) +
+  geom_line(aes(y=fitted_prob, color = region)) +
+  geom_line(aes(y=IT.CEL.SETS.P2, color = region))
+
+
 ```
 
