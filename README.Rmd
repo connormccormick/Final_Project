@@ -1,27 +1,14 @@
 ---
-title: "MATH 216 Data Science Final Project (Fall 2016)"
-output: github_document
+title: "The Effects of GNI and Conflict on Military Spending"
+output:
+  html_document:
+    toc: true
+    toc_float: true
+    collapsed: false
+    smooth_scroll: false
 ---
-
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
 
-```
-
----
-output: 
-  html_document: 
-    keep_md: yes
----
-
-
-* Name: Connor McCormick
-* Project title: Looking at public spending trends, as a percent of GDP, I want to see how countries allocate their incomes across decades and countries.  Using the World Development Indicators from 1960 to present, 
-* Write-up on RPubs: <http://rpubs.com/rudeboybert/Tree_Growth_Differences>
-* Abstract: 
-
-
-```{r, echo=FALSE, message=FALSE}
 library(ggplot2)
 library(dplyr)
 library(readr)
@@ -34,109 +21,360 @@ library(knitr)
 library(WDI)
 library(countrycode)
 library(broom)
+library(stargazer)
 library(maptools)
 library(sp)
 library(rgdal)
 library(rworldmap)
+library(utils)
+
+```
+
+---
+output: 
+  html_document: 
+    keep_md: yes
+---
+
+* Name: Connor McCormick
+* Project title: The Effects of GNI and Conflict on Military Spending
+* Write-up on RPubs: <http://rpubs.com/connormccormick/finalfinal>
+* Abstract: In this analysis, I look the effects of gross national income (GNI) per capita on military spending as a percentage of gross domestic product (GDP).  Using the [World Development Indicators](http://data.worldbank.org/data-catalog/world-development-indicators) from 1960 to present, I use GNI per capita in current dollars to look at conflict and military spending as a percentage of GDP.  I find significant results that as GNI per capita increases, military spending decreases at a decreasing rate.  I also look at the effect of military spending and GNI per capita on conflict and find significant results.  Using a linear probability model, military spending has a positive effect on conflict, while GNI has a negative effect.  
+
+## Data
+The World Development Indicators is an annual data set compiled by the World Bank from internationally reputable sources to generate an index of hundreds of variables that give information on individual countries.  These indicators range from people per 100 tractors to infant mortality and cover areas like agriculture, economic growth, education, health and others.  The WDIs are the most current and accurate information available at the national, regional and global level.  
+The conflict data I found consists of almost 800 instances of conflicts around the globe from 1989 to 2008.  Though this limits the WDI data, it is only slightly because the World Bank did not compile a lot country specific information until 1988.  
+I have a third data set which adds regional and sub-regional markers to the country level data.  This allows me to look at regional and sub-regional effects, as well as grouping countries to improve graphics.  
+
+# **INTRODUCTION**
+  The world is more connected now than ever in the past with the rise of globalization, the internet and technological advances in communication.  There are an increasinly large number ways that countries interact with each other, from trade to travel.  The United States set up and encouraged participation in international institutions during the post-WWII era, which ended an era of isolation in exchange for a capitalist driven era of open markets and open borders. Following WWII, the United States was the undisputed world power, with economic and military dominance, which allowed the US to dictate the global agenda.  According to Slaughter (2009), we live in a networked world and the new measure of power is connectedness.  The most powerful nation is at the center the network, like a spider in the center of a web, and the United States currently has the biggest edge.  Since countries are so interconnected through globalization, rarely do conflicts only affect the country involved. Conflicts drag in allies, now more so than ever, and no country outside the United States has the military capacity to act unilaterally.  
+  The Syrian Civil War is an example of an internal conflict that has affected the globe, as millions of refugees pour into neighboring nations in the Middle East, further destabilizing an unstable region.  The effects are even being felt in the Western World as nations in Europe begin to accept refugees as asylum seekers.  As more nations get involved with the conflict, like Russia, Iran and Turkey, the fighting continues and spreads to greater areas.  Syria is an outlier on this front, since there have been fewer and fewer conflicts in the recent decades.  
+  Military spending has been found to impact short term economic, which would effect GNI per capita. Dunne (2012) find a statistically significant relationship between short term economic growth and military spending.  This is due to resources that could be used for social programs, like public health clinics or low income housing, is spent on million dollar missiles and machine guns.  North Korea is an example of this effect, where a large portion of the countries GDP is diverting to its nuclear weapons program and other military sources.  As the North Korean people are forced to use bark for flour, Kim Jong-Un is spending millions of dollars on the military.  Military spending as a percentage of GDP would logically have a convex curve, as countries would spend a decreasing amount of their GDP on military at a decreasing rate.  Likely, these countries would have a minimum threshold they would like to stay above to repel any unexpected attacked from a rogue state or terrorist organization.  
+  My theory is that as countries increase their GNI per capita, they will decrease their spending on military.  This theory consists of reasoning on two fronts since it explore correlation, rather than causality.  First, as countries increase their GNI per capita, they become wealthier.  As a fact of this increase in wealth, military spending as a percentage of GDP will likely also fall because they will be spending around the same dollar amount on the military, while GDP increases.  Second, the Democratic Peace Theory states that democracies do not go to war with each other.  This theory, along with the fact that the most developed nations are democracies, supports that increased GNI per capita leads to lower military spending.  
+  
 
 
-WDI_select <- WDI(country="all", indicator=c("PA.NUS.PPP.05","SE.ADT.LITR.ZS", "AG.LND.TRAC.ZS", "MS.MIL.TOTL.TF.ZS", "SE.XPD.CTOT.ZS", "IC.BUS.EASE.XQ", "NY.GDP.MKTP.PP.CD", "SE.XPD.TOTL.GD.ZS", "SH.XPD.TOTL.ZS", "MS.MIL.XPND.GD.ZS", "IT.CEL.SETS.P2", "SP.RUR.TOTL.ZS"),
+```{r, echo=FALSE, message=FALSE, warning=FALSE, echo=FALSE}
+#Data stuff and EDA
+
+WDI_Data <- read_csv("WDI_csv/WDI_Data.csv")
+
+#look at a threshold for development, potentially agriculture or industry indicators, and plot developed vs. others on two separate plots with the x axis as stage of development  and the y axis as military spending as a % of gdp.
+
+WDI_select <- WDI(country="all", indicator=c("AG.LND.TRAC.ZS", "MS.MIL.TOTL.TF.ZS", "SE.XPD.CTOT.ZS", "IC.BUS.EASE.XQ", "NY.GDP.MKTP.PP.CD", "SE.XPD.TOTL.GD.ZS", "SH.XPD.TOTL.ZS", "MS.MIL.XPND.GD.ZS", "IT.CEL.SETS.P2", "SP.RUR.TOTL.ZS", "NY.GNP.PCAP.CD"),
     start=1960, end=2015)
+#SP.DYN.LE00.IN life expectancy at birth
 
-World <- rgdal::readOGR("ne_110m_admin_0_countries/ne_110m_admin_0_countries.shp", layer = "ne_110m_admin_0_countries") 
+#join with regional/subregional data
+all <- read_csv(file="all.csv") 
+countries <- left_join(WDI_select, all, by = c("iso2c" = "alpha-2"))
+``````
+
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE, echo=FALSE}
+#conflict map
+conflict <- read_csv(file="Conflict Data.csv") 
+conflictcountries <- left_join(countries, conflict, by = c("country" = "Conflict territory", "year" = "Year")) %>%
+  select(iso2c, country, year, MS.MIL.XPND.GD.ZS, NY.GNP.PCAP.CD, region, `sub-region`, Longitude, Latitude, Radius, `Conflict area`, `region-code`) 
+
+conflictcountries <- conflictcountries %>%
+  rename("subregion" = `sub-region`) %>%
+  mutate(conflict = ifelse(is.na(`Conflict area`), 0, 1)) %>%
+  rename(Military = MS.MIL.XPND.GD.ZS) %>%
+  rename(GNIPCAP = NY.GNP.PCAP.CD)
+
+
+conflictclean <- conflictcountries %>%
+  filter(!is.na(region))
+
+
+World <- rgdal::readOGR("ne_110m_admin_0_countries.shp", layer = "ne_110m_admin_0_countries") 
 
 World_polygon <- tidy(World, region="iso_a2") %>%
   filter(!id %in% "AQ")
 
-WDI_selectmilenium <- WDI_select%>%
-  filter(year>=2000)
+WDImilitarymap <- left_join(World_polygon, conflictclean, by=c("id"="iso2c")) 
 
-WDImap <- left_join(World_polygon, WDI_selectmilenium, by=c("id"="iso2c")) 
-
-#EDUCTION EXPENDITURE AS % OF GDP in 2000 and 2010
-WDImap2000 <- WDImap %>%
+WDImap2000 <- WDImilitarymap %>%
   filter(year==2000)
-WDImap2010 <- WDImap %>%
-  filter(year==2010)
 
-ggplot(WDImap2000, aes(x=long, y=lat, group=group, fill = SE.XPD.TOTL.GD.ZS)) +
-  geom_path() +
+````
+
+
+
+##Average Regional Military Spending over Time
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
+#regional average military spending over time
+
+aggregate <- WDImilitarymap %>%
+  group_by(region, year) %>%
+  filter(!is.na(Military)) %>%
+  summarize(meanmil = mean(Military))
+
+ggplot(aggregate, aes(x= year, y=meanmil, color = region)) +
+  geom_line()+
+  labs(title = "Regional Averages of Military Spending", x = "Year", y = "Military Spending (% of GDP)")
+``````
+
+Looking at the regional averages for military spending as a percentage of GDP, there is a clear downward trend.  As the world becomes more globalized and average incomes rise across the globe, it would make sense that military spending decreases due to interconnectedness of the world today.  There is a large amount of variability in Africa due to areas of heavy conflict being excluded from the WDI measures.  There are certain years that the World Bank was unable to get data from and usually this was during times of conflict or other unsafe conditions.
+
+##Military Spending and Conflict Map
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
+ggplot(WDImap2000, aes(x=long, y=lat, group=group, fill = Military)) +
+  geom_path(color = "red") +
   geom_polygon() +
-  coord_map() +
-  labs(title = "2000 Eduction Expenditure (% of GDP)", x = "Longitude", y = "Latitude")
+  geom_point(aes(x=Longitude, y=Latitude), color = "violetred2") +
+  coord_map()  +
+  scale_fill_gradient(limits=c(0,15), na.value = "white", low = "darkblue") +
+  labs(title = "2000 Military Expenditure (% of GDP) and Points of Conflict", x = "Longitude", y = "Latitude")
 
-ggplot(WDImap2010, aes(x=long, y=lat, group=group, fill = SE.XPD.TOTL.GD.ZS)) +
-  geom_path() +
-  geom_polygon() +
-  coord_map() +
-  labs(title = "2010 Eduction Expenditure (% of GDP)", x = "Longitude", y = "Latitude")
+``````
 
-#Healthcare EXPENDITURE AS % OF GDP in 2000 and 2010
-ggplot(WDImap2000, aes(x=long, y=lat, group=group, fill = SH.XPD.TOTL.ZS)) +
-  geom_path() +
-  geom_polygon() +
-  coord_map() +
-  labs(title = "2000 Eduction Expenditure (% of GDP)", x = "Longitude", y = "Latitude")
-
-ggplot(WDImap2010, aes(x=long, y=lat, group=group, fill = SH.XPD.TOTL.ZS)) +
-  geom_path() +
-  geom_polygon() +
-  coord_map() +
-  labs(title = "2010 Eduction Expenditure (% of GDP)", x = "Longitude", y = "Latitude")
-
-#MILITARY EXPENDITURE AS % OF GDP in 2000 and 2010
-ggplot(WDImap2000, aes(x=long, y=lat, group=group, fill = MS.MIL.XPND.GD.ZS)) +
-  geom_path() +
-  geom_polygon() +
-  coord_map()  
-
-ggplot(WDImap2010, aes(x=long, y=lat, group=group, fill = MS.MIL.XPND.GD.ZS)) +
-  geom_path() +
-  geom_polygon() +
-  coord_map()  
+This map shows conflicts that occured in 2000 as well as the military expenditure as a percentage of GDP.  The countries in areas that have the most conflict tend to have higher military spending.  Since this is just a one year snapshot of military spending, it may not give the full picture.  For example, Eritrea, in 2000, spent over 30% of its GDP on the military, which influenced the gradient too much.  This dimished the nuances between other nations, so I capped the military spending at 15% of GDP.  The nations in white have no information about them.  
 
 
-#looking out how much healthcare and education spending, as a percent of GDP, is compared to military spending
-GOVT_gdp2000 <- WDImap2000 %>%
-  mutate(spending = SE.XPD.TOTL.GD.ZS+SH.XPD.TOTL.ZS-MS.MIL.XPND.GD.ZS)
+##A Closer Look at the Influence of Conflict on Military Spending (Kuwait)
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
+#look at kuwait
 
-GOVT_gdp2010 <- WDImap %>%
-  filter(year==2010) %>%
-  mutate(spending = SE.XPD.TOTL.GD.ZS+SH.XPD.TOTL.ZS-MS.MIL.XPND.GD.ZS) 
+kuwait <- conflictcountries %>%
+  filter(country == "Kuwait", !is.na(Military)) %>%
+  group_by(year)
 
-ggplot(GOVT_gdp2000, aes(x=long, y=lat, group=group, fill = spending)) +
-  geom_path() +
-  geom_polygon() +
-  coord_map()  
+ggplot(kuwait, aes(x=year, y= Military)) +
+  geom_line() +
+  geom_vline(xintercept = 1990, color = "violetred2") +
+  geom_line(data=aggregate, aes(x=year, y = meanmil, color = region)) +
+  labs(title = "Kuwait Military Spending vs. Regional Averages", x = "Year", y = "Military Spending (% of GDP)")
 
-ggplot(GOVT_gdp2010, aes(x=long, y=lat, group=group, fill = spending)) +
-  geom_path() +
-  geom_polygon() +
-  coord_map()  
 
-#Time series regression to predict cell phones per 100 people using time, military expenditure and percent rural population
-spendingmodel <- lm(IT.CEL.SETS.P2 ~ year + country + SP.RUR.TOTL.ZS + MS.MIL.XPND.GD.ZS, data=WDImap, family="binomial")
+````
 
-predictions <- WDImap %>%
-  select(country, year, SP.RUR.TOTL.ZS, IT.CEL.SETS.P2, MS.MIL.XPND.GD.ZS) %>%
-  filter(!is.na(country)) %>%
-  filter(!is.na(IT.CEL.SETS.P2)) %>%
-  filter(!is.na(SP.RUR.TOTL.ZS)) %>%
-  filter(!is.na(MS.MIL.XPND.GD.ZS)) %>%
-  mutate(p_hat1 = fitted(spendingmodel, type = "response")) %>%
+Kuwait is a major outlier in military spending, especially in the 1990s when military spending peaked at around 117% of GDP in 1991.  The First Gulf War, in which Iraq invaded Kuwait occured in 1990, which is marked by the pink vertical line.  This led to a large spike in military spending the next year, followed by a sharp decrease a year later.  The invasion of Kuwait was repelled by US forces and Iraq occupied Kuwait for a short amount of time.  This adds to the conflict narrative that conflict influences how much a country spends on the military.  Also, economic growth is hurt by conflict, so the GDP for years during conflicts may be lower, while military spending is higher, creating a larger than normal effect.  
+
+
+##Military Spending by Region over Average GNI per Capita
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
+#look at a threshold for development, potentially agriculture or industry indicators, and plot developed vs. others on two separate plots with the x axis as stage of development  and the y axis as military spending as a % of gdp.
+
+highincome <- WDI_select %>%
+  select(country, year, iso2c, `MS.MIL.XPND.GD.ZS`, `NY.GNP.PCAP.CD`)
+
+all <- read_csv(file="all.csv") 
+highcountries <- left_join(highincome, all, by = c("iso2c" = "alpha-2")) %>%
+  filter(!is.na(region)) %>%
+  select(country, year, iso2c, `MS.MIL.XPND.GD.ZS`, `NY.GNP.PCAP.CD`, region, `sub-region`)%>%
+  rename("subregion" = `sub-region`) %>%
+  rename(Military = MS.MIL.XPND.GD.ZS) %>%
+  rename(GNIPCAP = NY.GNP.PCAP.CD)
+
+HIcountries <- highcountries %>%
+  mutate(highincome = ifelse(GNIPCAP >= 12745, 1, 0))
+
+
+#military average over region
+regional <- HIcountries %>%
+  filter(!is.na(region)) %>%
+  filter(!is.na(Military)) %>%
+  filter(!is.na(GNIPCAP)) 
+
+regionalsum <- regional %>%
+  group_by(region, year) %>%
+  summarise(avgmil = mean(Military), avgGNI=mean(GNIPCAP))
+
+ggplot(regionalsum, aes(x = avgGNI, y = avgmil, group = region, color = region)) +
+  geom_line() +
+  geom_hline(aes(yintercept=0)) +
+  geom_vline(xintercept = 12475)+
+  labs(title = "Military Spending by Region", x = "Average GNI per Capita", y = "Average Military Spending (% of GDP)")
+````
+
+Based on this graph, which shows the average continental military spending as a percentage of GDP, there appears to be a negative convex relationship between average GNI per capita and military spending as a percentage of GDP.  I use this graph as the basis for my model where I estimate GNI per capita and the square of GNI per capita.  
+
+
+###Military Spending by Sub-Region
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
+
+#over sub region
+subregional <- HIcountries %>%
+  filter(!is.na(region)) %>%
+  filter(!is.na(subregion)) %>%
+  filter(!is.na(Military)) %>%
+  filter(!is.na(GNIPCAP)) 
+
+subregionalsum <- subregional %>%
+  group_by(subregion, year) %>%
+  summarise(avg = mean(Military), avgGNI=mean(GNIPCAP))
+
+ggplot(subregionalsum, aes(x = avgGNI, y = avg, group = subregion, color = subregion)) +
+  geom_line() +
+  geom_hline(aes(yintercept=0)) +
+  geom_vline(xintercept = 12475)+
+  scale_x_log10() +
+  labs(title = "Military Spending by Sub-Region", x = "Average GNI per Capita", y = "Average Military Spending (% of GDP)")+
+  theme(legend.position="none")
+````
+
+Besides Western Asia, which is a clear outlier to the pattern, the trend appears to hold.  The data seems to show a effect between an increase in GNI per capita and a decrease in military spending, both at a sub-regional average.  
+
+##Regional Predictions
+###Regional Model 
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
+#regression
+HIcountries <- HIcountries %>%
+  mutate(GNIPCAP10x = GNIPCAP/10000)
+
+militarymodel <- lm(Military ~ GNIPCAP10x + I(GNIPCAP10x^2) + year + region +country, data=HIcountries)
+
+regionalmodel <- lm(Military ~ GNIPCAP10x + I(GNIPCAP10x^2) + year + region, data=HIcountries)
+kable(summary(regionalmodel)$coef, digits=3)
+
+
+`````
+
+For the model, I use GNI per capita at a changing rate of $10,000 to truly show the effects of large changes in GNI per capita.  I run two models, one with country, region and year controls and one with only region and year controls.  There are no significant changes and the one shown just has controls for region and year.  My model predicts that military spending will decrease at a decreasing rate, which is statistically significant.  Also, controls for region reveal interesting information on each continent as the Americas, Europe and Oceania have a negative effect on military spending, around a 1% decrease, while Asia experiences a 1% increase.  
+
+###Regional breakdown of GNI per Capita and Military Spending
+####Countries are color coded by sub-region
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
+
+
+HIpredictions <- HIcountries %>%
+  select(country, region, year, Military, GNIPCAP, subregion)  %>%
+  filter(!is.na(region)) %>%
+  filter(!is.na(Military)) %>%
+  filter(!is.na(GNIPCAP)) %>%
+  mutate(p_hat = predict(militarymodel, type = "response")) %>%
   distinct()
 
-predictions_tidy <- predictions %>%
-  gather(type, fitted_prob, -c(SP.RUR.TOTL.ZS, country, year, IT.CEL.SETS.P2, MS.MIL.XPND.GD.ZS))
+HIpredsum <- HIpredictions %>%
+  group_by(region, year) %>%
+  summarise(avgphat = mean(p_hat), avgmil = mean(Military), avgGNI=mean(GNIPCAP))
 
-countries <- left_join(predictions_tidy, all, by = c("country" = "name"))
-  
+ggplot(HIpredictions) +
+  geom_line(aes(x = GNIPCAP,y=Military, color = subregion, group = country)) +
+  geom_smooth(data = HIpredsum, aes(x=avgGNI, y=avgphat, group = region), fullrange = TRUE, se=FALSE) +
+  facet_wrap(~region) +
+  geom_hline(aes(yintercept=0)) +
+  geom_vline(xintercept = 12475) +
+  coord_cartesian(xlim=c(0, 25000))+
+  ylim(0,30)+
+  labs(title = "Regional Breakdown and Predictions", x = "GNI per Capita", y = "Military Spending (% of GDP)")+
+  theme(legend.position="none")
+````
+
+Using a model to predict military spending with GNI per Capita per $10000, region, country and year, I look at the regional average to the country level data.  Since the predictor is an aggregate of average GNI per capita, it has a very short span for the most part.  Africa does not show up because it is the omitted variable for the region level regression.  This means that all of the other predictions are changes in reference to where Africa is.  
+
+###Regional breakdown of GNI per Capita and Military Spending with Predictor
+####Countries are color coded by sub-region
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
+
+ggplot(HIpredictions) +
+  geom_line(aes(x = GNIPCAP,y=Military, color = subregion, group = country)) +
+  geom_smooth(method = "lm", aes(x=GNIPCAP, y=Military, group = region), fullrange = TRUE, se=FALSE) +
+  facet_wrap(~region) +
+  geom_hline(aes(yintercept=0)) +
+  geom_vline(xintercept = 12475) +
+  coord_cartesian(xlim=c(0, 25000))+
+  ylim(0,30)+
+  labs(title = "Regional Breakdown and Predictions", x = "GNI per Capita", y = "Military Spending (% of GDP)")+
+  theme(legend.position="none")
+````
+
+Using a linear model predictor for the regression GNI per capita on military spending, only Africa and Europe hold my prediction, while the Americas, Asia and Oceania have increasing slopes.  This predictor is limited since it is a linear predictor, so it does not take into account any of the curves.  
+
+##How GNI per Capita Effects Military Spending in Asia
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
+#asia
+Asiancountries <- HIpredictions %>%
+  filter(region=="Asia") 
+
+ggplot(Asiancountries, aes(x = GNIPCAP, y=Military, group = country)) +
+  geom_smooth(method="loess", aes(color2 = subregion, group = region), fullrange = TRUE, se=FALSE) +
+  geom_line(aes(color = country)) +
+  facet_wrap(~region) +
+  geom_hline(aes(yintercept=0)) +
+  geom_vline(xintercept = 12475) +
+  coord_cartesian(xlim=c(100, 100000))+
+  ylim(0,20)+
+  scale_x_log10()+
+  labs(title = "Asian Countries and Regional Predictions", x = "GNI per Capita", y = "Military Spending (% of GDP)")+
+  theme(legend.position="none")
+`````
+
+To look closer at the trend, I focus on Asia.  Using a different method to generate a preditor, I use a loess curve, which creates a local polynomial result.  This does not predict long term trends well, but shows local, general trends.  
 
 
-ggplot(countries, aes(x=year, group = country)) +
-  geom_line(aes(y=fitted_prob, color = region)) +
-  geom_line(aes(y=IT.CEL.SETS.P2, color = region))
+###A Look at Western Asia
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
+#western asia
+wacountries <- HIpredictions %>%
+  filter(subregion=="Western Asia") 
+
+ggplot(wacountries, aes(x = GNIPCAP, y=Military, group = country)) +
+  geom_smooth(method="loess", aes(color2 = region, group = region), fullrange = TRUE, se=FALSE) +
+  geom_line(aes(color = country)) +
+  geom_hline(aes(yintercept=0)) +
+  geom_vline(xintercept = 12475) +
+  coord_cartesian(xlim=c(100, 100000))+
+  ylim(0,20)+
+  scale_x_log10()+
+  labs(title = "Western Asian Countries and Regional Predictions", x = "GNI per Capita", y = "Military Spending (% of GDP)")
+
+````
+
+Looking closer at Asia, I focus on Western Asia, or the Middle East.  These countries accentuate the curve in the Asia plot.  The trend for Western Asia is an outlier, with some countries on the edge of being considered high income with substantially higher military spending.  These are the Arab nations, like Saudi Arabia, which have extensive natural resources, spend outrageous amounts on military due to the unstable nations surrounding them.  
 
 
-```
+##ADDING IN CONFLICT TO THE MODEL
+###With one final plot of regional trends
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
+#a closer look at the effects of conflict
+conflictclean <- conflictclean %>%
+  mutate(GNIPCAP10x = GNIPCAP/10000)
 
+conflictmodel <- lm(Military ~ GNIPCAP10x + I(GNIPCAP10x^2) +conflict + year + region, data=conflictclean)
+kable(summary(conflictmodel)$coef, digits=3)
+
+
+
+#plot
+ggplot(conflictclean, aes(x = GNIPCAP, y=Military)) +
+  geom_point(aes(color = region)) +
+  geom_smooth(method="loess", aes(color2 = conflict, group = region), fullrange = TRUE, se=FALSE) +
+  geom_hline(aes(yintercept=0)) +
+  geom_vline(xintercept = 12475) +
+  coord_cartesian(xlim=c(100, 100000))+
+  ylim(0,20)+
+  labs(title = "Regions and Conflict Predictions", x = "GNI per Capita", y = "Military Spending (% of GDP)")
+`````
+
+By adding in conflict and change the line plot to a point plot, it is clear that there is not any clear trend.  The regions are very much clumped together, like Africa, in red, is mostly concentrated to the left of the high income line.  There appears to be few outliers in Asia and Africa, but for the most part, it looks like there is no strong trend.  
+This final graph illustrates how my initial theory influenced my predictions and how they could still be true.  Though there are a lot of points around the high income vertical line with massive miitary spending, there are large portions of countries will low GNI per capita and low military spending.  Besides Asia and Africa, the majority of nations have very low military spending.  This follows that the areas that experience the most conflicts also have the highest spending.  
+The majority of the graphs so far have cut off at 25,000 for GNI per capita, so it does not show the highest income nations, which are mostly in Europe.  The continental patterns, besides Asia, have a relatively flat predictor lines, discounting my theory that military spending is higher for lower GNI per capita. 
+
+##CONFLICT PREDICTIONS
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
+#a closer look at the effects of conflict
+
+conflicteffect <- lm(conflict ~ GNIPCAP10x + Military + year + region, data=conflictclean)
+kable(summary(conflicteffect)$coef, digits=3)
+
+`````
+
+One last model to look at how GNI per capita and military spending affect conflict.  This is a linear probability model, so the coefficiencts can be interpreted as percent change.  So, if a country increases their military spending by ten percentage points, then there will be an 8% increase in the chance of a conflict.  Also, if a country is in Asia, they have are 10% more likely to have a conflict than the base value, Africa.  This model also shows that the number of conflicts have decreased over the period of this data set, consisting mainly of values from 1988-2015.  This model also shows that for every $10,000 increase in GNI per capita, a country is 2.3 percentage points less likely to experience a conflict.  
+
+
+
+
+# **CONCLUSION**
+My work shows strong correlation between GNI per capita (per $10000) and the square of that, proving my theory to be right to some extend.  The model shows that military spending decreases at a decreasing rate as GNI per capita increases.  None of the models can predict causation because the variables are confounding, meaning that a change X will likely cause a change in Y.  All of the variables are very statistically significant, which shows that military spending is impacted by GNI per capita, region and year.  
+  I also run into the issue of reverse causality, which I hint at in the introduction.  In the Dunne (2012) paper, the empirical results show that conflict and military spending actually cause negative effects on short term economic growth, which would impact GNI per capita.  So, military spending could actually cause changes in GNI per capita, instead of the other way around.  Since this paper is just looking at correlations rather than causation, it is not an issue, but further study would have to run more careful regressions to get at a true causal effect.  
+  Future research would try to establish a causal relationship between GNI per capita and military spending as a percentage of GDP, but there is likely too many interwoven factors to control for to find anything significant.  Even though the results of this paper were significant, correlation does not always equal causation as is taught in all intro microeconomics classes.  Also, I would have liked to do more with conflict, like see what effect it has over time by lagging the variable.  The issue I ran into was that since all the data was stacked, lagging the data would have shifted variables for conflict in one country to another country.  Lagging would have to occur at the country level and then I would have to reaggregate the data after.  
+
+
+
+
+###References:
+Dunne, John Paul. "Military spending, growth, development and conflict." Defence and Peace Economics 23.6 (2012): 549-557.
+Slaughter, Anne-Marie. "America's Edge: Power in the Network Century." Academic OneFile. Foreign Affairs, Jan.-Feb. 2009. Web. 12 Dec. 2016.
